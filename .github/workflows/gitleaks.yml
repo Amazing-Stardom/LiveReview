@@ -13,46 +13,106 @@ on:
 jobs:
   gitleaks:
     runs-on: ubuntu-latest
+
     permissions:
       contents: read
       statuses: write
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Show runner hardware specs
+        run: |
+          set -euo pipefail
+
+          echo "===== RUNNER INFO ====="
+          echo "RUNNER_NAME=$RUNNER_NAME"
+          echo "RUNNER_OS=$RUNNER_OS"
+          echo "RUNNER_ARCH=$RUNNER_ARCH"
+          echo "ImageOS=$ImageOS"
+          echo "ImageVersion=$ImageVersion"
+
+          echo
+          echo "===== CPU ====="
+          echo "vCPU Count:"
+          nproc
+
+          echo
+          echo "Detailed CPU Info:"
+          lscpu
+
+          echo
+          echo "===== MEMORY ====="
+          free -h
+
+          echo
+          echo "===== DISK ====="
+          df -h /
+
+          echo
+          echo "===== CGROUP CPU LIMITS ====="
+          cat /sys/fs/cgroup/cpu.max 2>/dev/null || true
+          cat /sys/fs/cgroup/cpu/cpu.cfs_quota_us 2>/dev/null || true
+          cat /sys/fs/cgroup/cpu/cpu.cfs_period_us 2>/dev/null || true
+
       - name: Resolve latest gitleaks version
         id: gitleaks-version
         run: |
           set -euo pipefail
+
           RELEASE_JSON="$(curl -fsSL https://api.github.com/repos/gitleaks/gitleaks/releases/latest)"
-          VERSION="$(printf '%s' "$RELEASE_JSON" | grep -m1 '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/')"
+
+          VERSION="$(printf '%s' "$RELEASE_JSON" \
+            | grep -m1 '"tag_name":' \
+            | sed -E 's/.*"v([^"]+)".*/\1/')"
+
           if [ -z "$VERSION" ]; then
             echo "Failed to resolve latest gitleaks version"
             exit 1
           fi
+
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Cache gitleaks binary
         id: cache-gitleaks
         uses: actions/cache@v4
         with:
           path: .github-tools/bin/gitleaks
           key: gitleaks-${{ runner.os }}-${{ steps.gitleaks-version.outputs.version }}
+
       - name: Install gitleaks CLI
         if: steps.cache-gitleaks.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
+
           VERSION='${{ steps.gitleaks-version.outputs.version }}'
+
           DOWNLOAD_URL="https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz"
+
           mkdir -p .github-tools/bin
-          curl -fsSL -o .github-tools/gitleaks.tar.gz "$DOWNLOAD_URL"
-          tar -xzf .github-tools/gitleaks.tar.gz -C .github-tools/bin gitleaks
+
+          curl -fsSL \
+            -o .github-tools/gitleaks.tar.gz \
+            "$DOWNLOAD_URL"
+
+          tar -xzf .github-tools/gitleaks.tar.gz \
+            -C .github-tools/bin \
+            gitleaks
+
           chmod +x .github-tools/bin/gitleaks
+
       - name: Show gitleaks version
         run: |
           set -euo pipefail
           .github-tools/bin/gitleaks version
+
       - name: Run gitleaks
-        run: .github-tools/bin/gitleaks git . --redact --exit-code 1
+        run: |
+          set -euo pipefail
+          .github-tools/bin/gitleaks git . --redact --exit-code 1
 
       - name: Report status to commit SHA
         if: always() && github.event_name == 'workflow_dispatch'
@@ -60,6 +120,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           STATE: ${{ job.status == 'success' && 'success' || 'failure' }}
         run: |
+          set -euo pipefail
+
           gh api \
             --method POST \
             repos/${{ github.repository }}/statuses/${{ github.sha }} \
