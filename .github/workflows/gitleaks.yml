@@ -1,4 +1,4 @@
-name: gitleaks-benchmark
+name: gitleaks-thread-benchmark
 
 on:
   workflow_dispatch: {}
@@ -57,16 +57,15 @@ jobs:
           echo "===== DISK ====="
           df -h /
 
-      - name: Install benchmark tools
+      - name: Install monitoring tools
         run: |
           set -euo pipefail
 
           sudo apt-get update
 
           sudo apt-get install -y \
-            sysstat \
-            sysbench \
             procps \
+            sysstat \
             time
 
       - name: Resolve latest gitleaks version
@@ -128,24 +127,13 @@ jobs:
           set -euo pipefail
           .github-tools/bin/gitleaks version
 
-      - name: CPU benchmark
-        run: |
-          set -euo pipefail
-
-          echo "===== SYSBENCH CPU TEST ====="
-
-          sysbench cpu \
-            --threads=$(nproc) \
-            --time=10 \
-            run
-
-      - name: Run gitleaks benchmark
+      - name: Benchmark gitleaks threading
         run: |
           set -euo pipefail
 
           echo "===== STARTING GITLEAKS ====="
 
-          START_TIME=$(date +%s)
+          START_TIME=$(date +%s.%N)
 
           .github-tools/bin/gitleaks git . \
             --redact \
@@ -153,21 +141,29 @@ jobs:
           
           PID=$!
 
+          echo "PID=$PID"
+
           echo
-          echo "===== LIVE CPU USAGE ====="
+          echo "===== LIVE CPU / THREAD USAGE ====="
 
           while kill -0 $PID 2>/dev/null; do
-            ps -p $PID -o pid,%cpu,%mem,etime,cmd
+            ps -p $PID -o pid,%cpu,%mem,nlwp,etime,cmd
             sleep 1
           done
 
           wait $PID
 
-          END_TIME=$(date +%s)
+          END_TIME=$(date +%s.%N)
 
           echo
           echo "===== TOTAL EXECUTION TIME ====="
-          echo "$((END_TIME - START_TIME)) seconds"
+
+          python3 - <<EOF
+from decimal import Decimal
+start = Decimal("$START_TIME")
+end = Decimal("$END_TIME")
+print(f"{end - start:.3f} seconds")
+EOF
 
       - name: Show load average
         run: |
