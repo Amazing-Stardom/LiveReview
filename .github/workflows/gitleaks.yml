@@ -75,9 +75,7 @@ jobs:
 
           RELEASE_JSON="$(curl -fsSL https://api.github.com/repos/gitleaks/gitleaks/releases/latest)"
 
-          VERSION="$(printf '%s' "$RELEASE_JSON" \
-            | grep -m1 '"tag_name":' \
-            | sed -E 's/.*"v([^"]+)".*/\1/')"
+          VERSION="$(printf '%s' "$RELEASE_JSON" | grep -m1 '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/')"
 
           if [ -z "$VERSION" ]; then
             echo "Failed to resolve latest gitleaks version"
@@ -158,12 +156,7 @@ jobs:
           echo
           echo "===== TOTAL EXECUTION TIME ====="
 
-          python3 - <<EOF
-from decimal import Decimal
-start = Decimal("$START_TIME")
-end = Decimal("$END_TIME")
-print(f"{end - start:.3f} seconds")
-EOF
+          python3 -c "from decimal import Decimal; start=Decimal('$START_TIME'); end=Decimal('$END_TIME'); print(f'{end-start:.3f} seconds')"
 
       - name: Show load average
         run: |
