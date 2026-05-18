@@ -1,19 +1,21 @@
-name: gitleaks-arm64
+name: gitleaks-benchmark
 
 on:
   workflow_dispatch: {}
-  push:
-    branches:
-      - main
-      - master
 
 jobs:
-  gitleaks:
-    runs-on: ubuntu-24.04-arm
+  benchmark:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - ubuntu-latest
+          - ubuntu-24.04-arm
+
+    runs-on: ${{ matrix.runner }}
 
     permissions:
       contents: read
-      statuses: write
 
     steps:
       - name: Checkout repository
@@ -53,6 +55,18 @@ jobs:
           echo "===== DISK ====="
           df -h /
 
+      - name: Install benchmark tools
+        run: |
+          set -euo pipefail
+
+          sudo apt-get update
+
+          sudo apt-get install -y \
+            sysstat \
+            sysbench \
+            procps \
+            time
+
       - name: Resolve latest gitleaks version
         id: gitleaks-version
         run: |
@@ -85,7 +99,15 @@ jobs:
 
           VERSION='${{ steps.gitleaks-version.outputs.version }}'
 
-          DOWNLOAD_URL="https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_arm64.tar.gz"
+          ARCH="$(uname -m)"
+
+          if [ "$ARCH" = "aarch64" ]; then
+            FILE="gitleaks_${VERSION}_linux_arm64.tar.gz"
+          else
+            FILE="gitleaks_${VERSION}_linux_x64.tar.gz"
+          fi
+
+          DOWNLOAD_URL="https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/${FILE}"
 
           mkdir -p .github-tools/bin
 
@@ -104,23 +126,57 @@ jobs:
           set -euo pipefail
           .github-tools/bin/gitleaks version
 
-      - name: Run gitleaks
-        run: |
-          set -euo pipefail
-          .github-tools/bin/gitleaks git . --redact --exit-code 1
-
-      - name: Report status to commit SHA
-        if: always() && github.event_name == 'workflow_dispatch'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          STATE: ${{ job.status == 'success' && 'success' || 'failure' }}
+      - name: CPU benchmark
         run: |
           set -euo pipefail
 
-          gh api \
-            --method POST \
-            repos/${{ github.repository }}/statuses/${{ github.sha }} \
-            -f state="$STATE" \
-            -f context="gitleaks-arm64" \
-            -f description="Gitleaks ARM64 completed with status: $STATE" \
-            -f target_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "===== SYSBENCH CPU TEST ====="
+
+          sysbench cpu \
+            --threads=$(nproc) \
+            --time=10 \
+            run
+
+      - name: Run gitleaks benchmark
+        run: |
+          set -euo pipefail
+
+          echo "===== STARTING GITLEAKS ====="
+
+          START_TIME=$(date +%s)
+
+          .github-tools/bin/gitleaks git . \
+            --redact \
+            --exit-code 0 &
+          
+          PID=$!
+
+          echo
+          echo "===== LIVE CPU USAGE ====="
+
+          while kill -0 $PID 2>/dev/null; do
+            ps -p $PID -o pid,%cpu,%mem,etime,cmd
+            sleep 1
+          done
+
+          wait $PID
+
+          END_TIME=$(date +%s)
+
+          echo
+          echo "===== TOTAL EXECUTION TIME ====="
+          echo "$((END_TIME - START_TIME)) seconds"
+
+      - name: Show load average
+        run: |
+          set -euo pipefail
+
+          echo "===== LOAD AVERAGE ====="
+          uptime
+
+      - name: Show final memory stats
+        run: |
+          set -euo pipefail
+
+          echo "===== FINAL MEMORY ====="
+          free -h
