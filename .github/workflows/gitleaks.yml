@@ -8,6 +8,7 @@ jobs:
     if: github.repository == 'Amazing-Stardom/LiveReview'
 
     strategy:
+      max-parallel: 1
       fail-fast: false
 
       matrix:
@@ -32,10 +33,9 @@ jobs:
           - { name: "lambda-5120mb", memory: "5g", cpus: "2.90" }
           - { name: "lambda-6144mb", memory: "6g", cpus: "3.50" }
           - { name: "lambda-7168mb", memory: "7g", cpus: "4.00" }
-          - { name: "lambda-8192mb", memory: "8g", cpus: "4.60" }
-          - { name: "lambda-9216mb", memory: "9g", cpus: "5.20" }
-
-          - { name: "lambda-10240mb", memory: "10g", cpus: "6.00" }
+          - { name: "lambda-8192mb", memory: "8g", cpus: "4.00" }
+          - { name: "lambda-9216mb", memory: "9g", cpus: "4.00" }
+          - { name: "lambda-10240mb", memory: "10g", cpus: "4.00" }
 
     runs-on: ${{ matrix.runner }}
 
@@ -58,12 +58,18 @@ jobs:
           echo "RUNNER_NAME=$RUNNER_NAME"
           echo "RUNNER_OS=$RUNNER_OS"
           echo "RUNNER_ARCH=$RUNNER_ARCH"
+          echo "ImageOS=$ImageOS"
+          echo "ImageVersion=$ImageVersion"
 
           echo
           echo "===== PROFILE ====="
           echo "PROFILE=${{ matrix.profile.name }}"
           echo "MEMORY=${{ matrix.profile.memory }}"
           echo "CPUS=${{ matrix.profile.cpus }}"
+
+          echo
+          echo "===== ARCHITECTURE ====="
+          uname -m
 
           echo
           echo "===== CPU ====="
@@ -73,8 +79,14 @@ jobs:
           echo "===== MEMORY ====="
           free -h
 
+          echo
+          echo "===== DISK ====="
+          df -h /
+
       - name: Pull gitleaks image
         run: |
+          set -euo pipefail
+
           docker pull ghcr.io/gitleaks/gitleaks:latest
 
       - name: Run benchmark
@@ -124,7 +136,8 @@ jobs:
 
           echo
           echo "===== RESULTS ====="
-
+          echo "Runner: ${{ matrix.runner }}"
+          echo "Profile: ${{ matrix.profile.name }}"
           echo "Execution Time: ${TOTAL_TIME}s"
           echo "Memory GB: ${MEMORY_GB}"
           echo "GB-Seconds: ${GB_SECONDS}"
