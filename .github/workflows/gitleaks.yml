@@ -1,4 +1,4 @@
-name: gitleaks-thread-benchmark
+name: gitleaks-lambda-simulation
 
 on:
   workflow_dispatch: {}
@@ -9,10 +9,32 @@ jobs:
 
     strategy:
       fail-fast: false
+
       matrix:
         runner:
           - ubuntu-latest
           - ubuntu-24.04-arm
+
+        profile:
+          - name: lambda-512mb
+            memory: 512m
+            cpus: "0.5"
+
+          - name: lambda-1024mb
+            memory: 1g
+            cpus: "0.75"
+
+          - name: lambda-2048mb
+            memory: 2g
+            cpus: "1"
+
+          - name: lambda-3072mb
+            memory: 3g
+            cpus: "1.7"
+
+          - name: lambda-4096mb
+            memory: 4g
+            cpus: "2.3"
 
     runs-on: ${{ matrix.runner }}
 
@@ -37,36 +59,22 @@ jobs:
           echo "ImageVersion=$ImageVersion"
 
           echo
+          echo "===== TEST PROFILE ====="
+          echo "PROFILE=${{ matrix.profile.name }}"
+          echo "MEMORY=${{ matrix.profile.memory }}"
+          echo "CPUS=${{ matrix.profile.cpus }}"
+
+          echo
           echo "===== ARCHITECTURE ====="
           uname -m
 
           echo
           echo "===== CPU ====="
-          echo "vCPU Count:"
           nproc
-
-          echo
-          echo "Detailed CPU Info:"
-          lscpu
 
           echo
           echo "===== MEMORY ====="
           free -h
-
-          echo
-          echo "===== DISK ====="
-          df -h /
-
-      - name: Install monitoring tools
-        run: |
-          set -euo pipefail
-
-          sudo apt-get update
-
-          sudo apt-get install -y \
-            procps \
-            sysstat \
-            time
 
       - name: Resolve latest gitleaks version
         id: gitleaks-version
@@ -75,7 +83,9 @@ jobs:
 
           RELEASE_JSON="$(curl -fsSL https://api.github.com/repos/gitleaks/gitleaks/releases/latest)"
 
-          VERSION="$(printf '%s' "$RELEASE_JSON" | grep -m1 '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/')"
+          VERSION="$(printf '%s' "$RELEASE_JSON" \
+            | grep -m1 '"tag_name":' \
+            | sed -E 's/.*"v([^"]+)".*/\1/')"
 
           if [ -z "$VERSION" ]; then
             echo "Failed to resolve latest gitleaks version"
@@ -125,17 +135,21 @@ jobs:
           set -euo pipefail
           .github-tools/bin/gitleaks version
 
-      - name: Benchmark gitleaks threading
+      - name: Run gitleaks with Lambda-like limits
         run: |
           set -euo pipefail
 
-          echo "===== STARTING GITLEAKS ====="
+          echo "===== STARTING LIMITED GITLEAKS ====="
 
           START_TIME=$(date +%s.%N)
 
-          .github-tools/bin/gitleaks git . \
-            --redact \
-            --exit-code 0 &
+          docker run --rm \
+            --memory="${{ matrix.profile.memory }}" \
+            --cpus="${{ matrix.profile.cpus }}" \
+            -v "$PWD:/repo" \
+            -w /repo \
+            ghcr.io/gitleaks/gitleaks:latest \
+            git . --redact --exit-code 0 &
           
           PID=$!
 
@@ -158,12 +172,13 @@ jobs:
 
           python3 -c "from decimal import Decimal; start=Decimal('$START_TIME'); end=Decimal('$END_TIME'); print(f'{end-start:.3f} seconds')"
 
-      - name: Show load average
+      - name: Show Docker container limits
         run: |
           set -euo pipefail
 
-          echo "===== LOAD AVERAGE ====="
-          uptime
+          echo "===== LIMITS TESTED ====="
+          echo "Memory Limit: ${{ matrix.profile.memory }}"
+          echo "CPU Limit: ${{ matrix.profile.cpus }}"
 
       - name: Show final memory stats
         run: |
