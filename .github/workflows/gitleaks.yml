@@ -8,34 +8,124 @@ jobs:
     if: github.repository == 'Amazing-Stardom/LiveReview'
 
     strategy:
-      max-parallel: 1
+      max-parallel: 6
       fail-fast: false
 
       matrix:
-        runner:
-          - ubuntu-latest
-          - ubuntu-24.04-arm
+        include:
+          # ===== X86 =====
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            arch: x86_64
+            name: lambda-512mb
+            memory: 512m
+            cpus: "0.30"
 
-        profile:
-          - { name: "lambda-128mb", memory: "128m", cpus: "0.08" }
-          - { name: "lambda-256mb", memory: "256m", cpus: "0.15" }
-          - { name: "lambda-512mb", memory: "512m", cpus: "0.30" }
-          - { name: "lambda-768mb", memory: "768m", cpus: "0.45" }
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            arch: x86_64
+            name: lambda-1024mb
+            memory: 1g
+            cpus: "0.60"
 
-          - { name: "lambda-1024mb", memory: "1g", cpus: "0.60" }
-          - { name: "lambda-1536mb", memory: "1536m", cpus: "0.85" }
-          - { name: "lambda-2048mb", memory: "2g", cpus: "1.15" }
-          - { name: "lambda-2560mb", memory: "2560m", cpus: "1.40" }
-          - { name: "lambda-3072mb", memory: "3g", cpus: "1.70" }
-          - { name: "lambda-3584mb", memory: "3584m", cpus: "2.00" }
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            arch: x86_64
+            name: lambda-2048mb
+            memory: 2g
+            cpus: "1.15"
 
-          - { name: "lambda-4096mb", memory: "4g", cpus: "2.30" }
-          - { name: "lambda-5120mb", memory: "5g", cpus: "2.90" }
-          - { name: "lambda-6144mb", memory: "6g", cpus: "3.50" }
-          - { name: "lambda-7168mb", memory: "7g", cpus: "4.00" }
-          - { name: "lambda-8192mb", memory: "8g", cpus: "4.00" }
-          - { name: "lambda-9216mb", memory: "9g", cpus: "4.00" }
-          - { name: "lambda-10240mb", memory: "10g", cpus: "4.00" }
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            arch: x86_64
+            name: lambda-3072mb
+            memory: 3g
+            cpus: "1.70"
+
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            arch: x86_64
+            name: lambda-4096mb
+            memory: 4g
+            cpus: "2.30"
+
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            arch: x86_64
+            name: lambda-6144mb
+            memory: 6g
+            cpus: "3.50"
+
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            arch: x86_64
+            name: lambda-8192mb
+            memory: 8g
+            cpus: "4.00"
+
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            arch: x86_64
+            name: lambda-10240mb
+            memory: 10g
+            cpus: "4.00"
+
+          # ===== ARM64 =====
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            arch: arm64
+            name: lambda-512mb
+            memory: 512m
+            cpus: "0.30"
+
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            arch: arm64
+            name: lambda-1024mb
+            memory: 1g
+            cpus: "0.60"
+
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            arch: arm64
+            name: lambda-2048mb
+            memory: 2g
+            cpus: "1.15"
+
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            arch: arm64
+            name: lambda-3072mb
+            memory: 3g
+            cpus: "1.70"
+
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            arch: arm64
+            name: lambda-4096mb
+            memory: 4g
+            cpus: "2.30"
+
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            arch: arm64
+            name: lambda-6144mb
+            memory: 6g
+            cpus: "3.50"
+
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            arch: arm64
+            name: lambda-8192mb
+            memory: 8g
+            cpus: "4.00"
+
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            arch: arm64
+            name: lambda-10240mb
+            memory: 10g
+            cpus: "4.00"
 
     runs-on: ${{ matrix.runner }}
 
@@ -62,44 +152,38 @@ jobs:
           echo "ImageVersion=$ImageVersion"
 
           echo
-          echo "===== PROFILE ====="
-          echo "PROFILE=${{ matrix.profile.name }}"
-          echo "MEMORY=${{ matrix.profile.memory }}"
-          echo "CPUS=${{ matrix.profile.cpus }}"
+          echo "===== BENCHMARK PROFILE ====="
+          echo "ARCH=${{ matrix.arch }}"
+          echo "PLATFORM=${{ matrix.platform }}"
+          echo "MEMORY=${{ matrix.memory }}"
+          echo "CPUS=${{ matrix.cpus }}"
 
           echo
-          echo "===== ARCHITECTURE ====="
+          echo "===== SYSTEM ====="
           uname -m
-
-          echo
-          echo "===== CPU ====="
           nproc
-
-          echo
-          echo "===== MEMORY ====="
           free -h
 
-          echo
-          echo "===== DISK ====="
-          df -h /
-
-      - name: Pull gitleaks image
+      - name: Pull architecture-specific gitleaks image
         run: |
           set -euo pipefail
 
-          docker pull ghcr.io/gitleaks/gitleaks:latest
+          docker pull \
+            --platform=${{ matrix.platform }} \
+            ghcr.io/gitleaks/gitleaks:latest
 
       - name: Run benchmark
         run: |
           set -euo pipefail
 
-          echo "===== STARTING TEST ====="
+          echo "===== STARTING GITLEAKS ====="
 
           START_TIME=$(date +%s.%N)
 
           docker run --rm \
-            --memory="${{ matrix.profile.memory }}" \
-            --cpus="${{ matrix.profile.cpus }}" \
+            --platform=${{ matrix.platform }} \
+            --memory="${{ matrix.memory }}" \
+            --cpus="${{ matrix.cpus }}" \
             -v "$PWD:/repo" \
             -w /repo \
             ghcr.io/gitleaks/gitleaks:latest \
@@ -123,7 +207,7 @@ jobs:
 
           TOTAL_TIME=$(python3 -c "from decimal import Decimal; start=Decimal('$START_TIME'); end=Decimal('$END_TIME'); print(f'{end-start:.3f}')")
 
-          MEMORY_RAW="${{ matrix.profile.memory }}"
+          MEMORY_RAW="${{ matrix.memory }}"
 
           if [[ "$MEMORY_RAW" == *g ]]; then
             MEMORY_GB=$(echo "$MEMORY_RAW" | sed 's/g//')
@@ -137,7 +221,9 @@ jobs:
           echo
           echo "===== RESULTS ====="
           echo "Runner: ${{ matrix.runner }}"
-          echo "Profile: ${{ matrix.profile.name }}"
+          echo "Architecture: ${{ matrix.arch }}"
+          echo "Platform: ${{ matrix.platform }}"
+          echo "Profile: ${{ matrix.name }}"
           echo "Execution Time: ${TOTAL_TIME}s"
           echo "Memory GB: ${MEMORY_GB}"
           echo "GB-Seconds: ${GB_SECONDS}"
