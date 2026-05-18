@@ -5,6 +5,8 @@ on:
 
 jobs:
   benchmark:
+    if: github.repository == 'Amazing-Stardom/LiveReview'
+
     strategy:
       fail-fast: false
       matrix:
