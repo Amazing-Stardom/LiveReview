@@ -16,77 +16,26 @@ jobs:
           - ubuntu-24.04-arm
 
         profile:
-          # ===== VERY SMALL =====
-          - name: lambda-128mb
-            memory: 128m
-            cpus: "0.08"
+          - { name: "lambda-128mb", memory: "128m", cpus: "0.08" }
+          - { name: "lambda-256mb", memory: "256m", cpus: "0.15" }
+          - { name: "lambda-512mb", memory: "512m", cpus: "0.30" }
+          - { name: "lambda-768mb", memory: "768m", cpus: "0.45" }
 
-          - name: lambda-256mb
-            memory: 256m
-            cpus: "0.15"
+          - { name: "lambda-1024mb", memory: "1g", cpus: "0.60" }
+          - { name: "lambda-1536mb", memory: "1536m", cpus: "0.85" }
+          - { name: "lambda-2048mb", memory: "2g", cpus: "1.15" }
+          - { name: "lambda-2560mb", memory: "2560m", cpus: "1.40" }
+          - { name: "lambda-3072mb", memory: "3g", cpus: "1.70" }
+          - { name: "lambda-3584mb", memory: "3584m", cpus: "2.00" }
 
-          - name: lambda-512mb
-            memory: 512m
-            cpus: "0.30"
+          - { name: "lambda-4096mb", memory: "4g", cpus: "2.30" }
+          - { name: "lambda-5120mb", memory: "5g", cpus: "2.90" }
+          - { name: "lambda-6144mb", memory: "6g", cpus: "3.50" }
+          - { name: "lambda-7168mb", memory: "7g", cpus: "4.00" }
+          - { name: "lambda-8192mb", memory: "8g", cpus: "4.60" }
+          - { name: "lambda-9216mb", memory: "9g", cpus: "5.20" }
 
-          - name: lambda-768mb
-            memory: 768m
-            cpus: "0.45"
-
-          # ===== SMALL =====
-          - name: lambda-1024mb
-            memory: 1g
-            cpus: "0.60"
-
-          - name: lambda-1536mb
-            memory: 1536m
-            cpus: "0.85"
-
-          - name: lambda-2048mb
-            memory: 2g
-            cpus: "1.15"
-
-          - name: lambda-2560mb
-            memory: 2560m
-            cpus: "1.40"
-
-          - name: lambda-3072mb
-            memory: 3g
-            cpus: "1.70"
-
-          - name: lambda-3584mb
-            memory: 3584m
-            cpus: "2.00"
-
-          # ===== MEDIUM =====
-          - name: lambda-4096mb
-            memory: 4g
-            cpus: "2.30"
-
-          - name: lambda-5120mb
-            memory: 5g
-            cpus: "2.90"
-
-          - name: lambda-6144mb
-            memory: 6g
-            cpus: "3.50"
-
-          - name: lambda-7168mb
-            memory: 7g
-            cpus: "4.00"
-
-          - name: lambda-8192mb
-            memory: 8g
-            cpus: "4.60"
-
-          - name: lambda-9216mb
-            memory: 9g
-            cpus: "5.20"
-
-          # ===== MAX =====
-          - name: lambda-10240mb
-            memory: 10g
-            cpus: "6.00"
+          - { name: "lambda-10240mb", memory: "10g", cpus: "6.00" }
 
     runs-on: ${{ matrix.runner }}
 
@@ -109,18 +58,12 @@ jobs:
           echo "RUNNER_NAME=$RUNNER_NAME"
           echo "RUNNER_OS=$RUNNER_OS"
           echo "RUNNER_ARCH=$RUNNER_ARCH"
-          echo "ImageOS=$ImageOS"
-          echo "ImageVersion=$ImageVersion"
 
           echo
-          echo "===== TEST PROFILE ====="
+          echo "===== PROFILE ====="
           echo "PROFILE=${{ matrix.profile.name }}"
           echo "MEMORY=${{ matrix.profile.memory }}"
           echo "CPUS=${{ matrix.profile.cpus }}"
-
-          echo
-          echo "===== ARCHITECTURE ====="
-          uname -m
 
           echo
           echo "===== CPU ====="
@@ -130,76 +73,15 @@ jobs:
           echo "===== MEMORY ====="
           free -h
 
-      - name: Resolve latest gitleaks version
-        id: gitleaks-version
+      - name: Pull gitleaks image
         run: |
-          set -euo pipefail
-
-          RELEASE_JSON="$(curl -fsSL https://api.github.com/repos/gitleaks/gitleaks/releases/latest)"
-
-          VERSION="$(printf '%s' "$RELEASE_JSON" \
-            | grep -m1 '"tag_name":' \
-            | sed -E 's/.*"v([^"]+)".*/\1/')"
-
-          if [ -z "$VERSION" ]; then
-            echo "Failed to resolve latest gitleaks version"
-            exit 1
-          fi
-
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Cache gitleaks binary
-        id: cache-gitleaks
-        uses: actions/cache@v4
-        with:
-          path: .github-tools/bin/gitleaks
-          key: gitleaks-${{ runner.os }}-${{ runner.arch }}-${{ steps.gitleaks-version.outputs.version }}
-
-      - name: Install gitleaks CLI
-        if: steps.cache-gitleaks.outputs.cache-hit != 'true'
-        run: |
-          set -euo pipefail
-
-          VERSION='${{ steps.gitleaks-version.outputs.version }}'
-
-          ARCH="$(uname -m)"
-
-          if [ "$ARCH" = "aarch64" ]; then
-            FILE="gitleaks_${VERSION}_linux_arm64.tar.gz"
-          else
-            FILE="gitleaks_${VERSION}_linux_x64.tar.gz"
-          fi
-
-          DOWNLOAD_URL="https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/${FILE}"
-
-          mkdir -p .github-tools/bin
-
-          curl -fsSL \
-            -o .github-tools/gitleaks.tar.gz \
-            "$DOWNLOAD_URL"
-
-          tar -xzf .github-tools/gitleaks.tar.gz \
-            -C .github-tools/bin \
-            gitleaks
-
-          chmod +x .github-tools/bin/gitleaks
-
-      - name: Show gitleaks version
-        run: |
-          set -euo pipefail
-          .github-tools/bin/gitleaks version
-
-      - name: Pull Docker image
-        run: |
-          set -euo pipefail
-
           docker pull ghcr.io/gitleaks/gitleaks:latest
 
-      - name: Run gitleaks with Lambda-like limits
+      - name: Run benchmark
         run: |
           set -euo pipefail
 
-          echo "===== STARTING LIMITED GITLEAKS ====="
+          echo "===== STARTING TEST ====="
 
           START_TIME=$(date +%s.%N)
 
@@ -227,36 +109,25 @@ jobs:
 
           END_TIME=$(date +%s.%N)
 
-          echo
-          echo "===== TOTAL EXECUTION TIME ====="
-
           TOTAL_TIME=$(python3 -c "from decimal import Decimal; start=Decimal('$START_TIME'); end=Decimal('$END_TIME'); print(f'{end-start:.3f}')")
 
-          echo "${TOTAL_TIME} seconds"
+          MEMORY_RAW="${{ matrix.profile.memory }}"
+
+          if [[ "$MEMORY_RAW" == *g ]]; then
+            MEMORY_GB=$(echo "$MEMORY_RAW" | sed 's/g//')
+          else
+            MEMORY_MB=$(echo "$MEMORY_RAW" | sed 's/m//')
+            MEMORY_GB=$(python3 -c "print(round($MEMORY_MB/1024, 4))")
+          fi
+
+          GB_SECONDS=$(python3 -c "from decimal import Decimal; mem=Decimal('$MEMORY_GB'); time=Decimal('$TOTAL_TIME'); print(f'{mem*time:.3f}')")
 
           echo
-          echo "===== GB-SECOND CALCULATION ====="
+          echo "===== RESULTS ====="
 
-          MEMORY_GB=$(python3 -c "m='${{ matrix.profile.memory }}'; \
-if m.endswith('g'): print(float(m[:-1])); \
-elif m.endswith('m'): print(float(m[:-1])/1024)")
-
-          GB_SECONDS=$(python3 -c "from decimal import Decimal; \
-mem=Decimal('$MEMORY_GB'); \
-time=Decimal('$TOTAL_TIME'); \
-print(f'{mem*time:.3f}')")
-
-          echo "Memory GB: $MEMORY_GB"
-          echo "Execution Time: $TOTAL_TIME"
-          echo "GB-Seconds: $GB_SECONDS"
-
-      - name: Show Docker container limits
-        run: |
-          set -euo pipefail
-
-          echo "===== LIMITS TESTED ====="
-          echo "Memory Limit: ${{ matrix.profile.memory }}"
-          echo "CPU Limit: ${{ matrix.profile.cpus }}"
+          echo "Execution Time: ${TOTAL_TIME}s"
+          echo "Memory GB: ${MEMORY_GB}"
+          echo "GB-Seconds: ${GB_SECONDS}"
 
       - name: Show final memory stats
         run: |
