@@ -1,4 +1,4 @@
-name: gitleaks
+name: gitleaks-arm64
 
 on:
   workflow_dispatch: {}
@@ -6,13 +6,10 @@ on:
     branches:
       - main
       - master
-    paths:
-      - "**/*"
-      - .github/workflows/gitleaks.yml
 
 jobs:
   gitleaks:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     permissions:
       contents: read
@@ -36,6 +33,10 @@ jobs:
           echo "ImageVersion=$ImageVersion"
 
           echo
+          echo "===== ARCHITECTURE ====="
+          uname -m
+
+          echo
           echo "===== CPU ====="
           echo "vCPU Count:"
           nproc
@@ -51,12 +52,6 @@ jobs:
           echo
           echo "===== DISK ====="
           df -h /
-
-          echo
-          echo "===== CGROUP CPU LIMITS ====="
-          cat /sys/fs/cgroup/cpu.max 2>/dev/null || true
-          cat /sys/fs/cgroup/cpu/cpu.cfs_quota_us 2>/dev/null || true
-          cat /sys/fs/cgroup/cpu/cpu.cfs_period_us 2>/dev/null || true
 
       - name: Resolve latest gitleaks version
         id: gitleaks-version
@@ -81,7 +76,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .github-tools/bin/gitleaks
-          key: gitleaks-${{ runner.os }}-${{ steps.gitleaks-version.outputs.version }}
+          key: gitleaks-${{ runner.os }}-${{ runner.arch }}-${{ steps.gitleaks-version.outputs.version }}
 
       - name: Install gitleaks CLI
         if: steps.cache-gitleaks.outputs.cache-hit != 'true'
@@ -90,7 +85,7 @@ jobs:
 
           VERSION='${{ steps.gitleaks-version.outputs.version }}'
 
-          DOWNLOAD_URL="https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz"
+          DOWNLOAD_URL="https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_arm64.tar.gz"
 
           mkdir -p .github-tools/bin
 
@@ -126,6 +121,6 @@ jobs:
             --method POST \
             repos/${{ github.repository }}/statuses/${{ github.sha }} \
             -f state="$STATE" \
-            -f context="gitleaks" \
-            -f description="Gitleaks completed with status: $STATE" \
+            -f context="gitleaks-arm64" \
+            -f description="Gitleaks ARM64 completed with status: $STATE" \
             -f target_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
