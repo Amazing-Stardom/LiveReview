@@ -1,4 +1,4 @@
-name: gitleaks-lambda-simulation
+name: gitleaks-lambda-full-spectrum
 
 on:
   workflow_dispatch: {}
@@ -16,30 +16,84 @@ jobs:
           - ubuntu-24.04-arm
 
         profile:
+          # ===== VERY SMALL =====
+          - name: lambda-128mb
+            memory: 128m
+            cpus: "0.08"
+
+          - name: lambda-256mb
+            memory: 256m
+            cpus: "0.15"
+
           - name: lambda-512mb
             memory: 512m
-            cpus: "0.5"
+            cpus: "0.30"
 
+          - name: lambda-768mb
+            memory: 768m
+            cpus: "0.45"
+
+          # ===== SMALL =====
           - name: lambda-1024mb
             memory: 1g
-            cpus: "0.75"
+            cpus: "0.60"
+
+          - name: lambda-1536mb
+            memory: 1536m
+            cpus: "0.85"
 
           - name: lambda-2048mb
             memory: 2g
-            cpus: "1"
+            cpus: "1.15"
+
+          - name: lambda-2560mb
+            memory: 2560m
+            cpus: "1.40"
 
           - name: lambda-3072mb
             memory: 3g
-            cpus: "1.7"
+            cpus: "1.70"
 
+          - name: lambda-3584mb
+            memory: 3584m
+            cpus: "2.00"
+
+          # ===== MEDIUM =====
           - name: lambda-4096mb
             memory: 4g
-            cpus: "2.3"
+            cpus: "2.30"
+
+          - name: lambda-5120mb
+            memory: 5g
+            cpus: "2.90"
+
+          - name: lambda-6144mb
+            memory: 6g
+            cpus: "3.50"
+
+          - name: lambda-7168mb
+            memory: 7g
+            cpus: "4.00"
+
+          - name: lambda-8192mb
+            memory: 8g
+            cpus: "4.60"
+
+          - name: lambda-9216mb
+            memory: 9g
+            cpus: "5.20"
+
+          # ===== MAX =====
+          - name: lambda-10240mb
+            memory: 10g
+            cpus: "6.00"
 
     runs-on: ${{ matrix.runner }}
 
     permissions:
       contents: read
+
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository
@@ -135,6 +189,12 @@ jobs:
           set -euo pipefail
           .github-tools/bin/gitleaks version
 
+      - name: Pull Docker image
+        run: |
+          set -euo pipefail
+
+          docker pull ghcr.io/gitleaks/gitleaks:latest
+
       - name: Run gitleaks with Lambda-like limits
         run: |
           set -euo pipefail
@@ -170,7 +230,25 @@ jobs:
           echo
           echo "===== TOTAL EXECUTION TIME ====="
 
-          python3 -c "from decimal import Decimal; start=Decimal('$START_TIME'); end=Decimal('$END_TIME'); print(f'{end-start:.3f} seconds')"
+          TOTAL_TIME=$(python3 -c "from decimal import Decimal; start=Decimal('$START_TIME'); end=Decimal('$END_TIME'); print(f'{end-start:.3f}')")
+
+          echo "${TOTAL_TIME} seconds"
+
+          echo
+          echo "===== GB-SECOND CALCULATION ====="
+
+          MEMORY_GB=$(python3 -c "m='${{ matrix.profile.memory }}'; \
+if m.endswith('g'): print(float(m[:-1])); \
+elif m.endswith('m'): print(float(m[:-1])/1024)")
+
+          GB_SECONDS=$(python3 -c "from decimal import Decimal; \
+mem=Decimal('$MEMORY_GB'); \
+time=Decimal('$TOTAL_TIME'); \
+print(f'{mem*time:.3f}')")
+
+          echo "Memory GB: $MEMORY_GB"
+          echo "Execution Time: $TOTAL_TIME"
+          echo "GB-Seconds: $GB_SECONDS"
 
       - name: Show Docker container limits
         run: |
