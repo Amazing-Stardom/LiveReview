@@ -1,23 +1,22 @@
 name: openapi-remote-diff-benchmark
 
 on:
+  push:
   pull_request:
-    types:
-      - opened
-      - synchronize
-      - reopened
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   validate-openapi-remote:
-    runs-on: ubuntu-24.04-arm
-
     if: github.repository == 'Amazing-Stardom/LiveReview'
+
+    runs-on: ubuntu-24.04-arm
 
     strategy:
       fail-fast: false
+
       matrix:
         include:
           - { memory: "1g",    cpus: "0.60" }
@@ -29,52 +28,36 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - name: Checkout PR branch
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Fetch base branch
-        run: |
-          git fetch origin ${{ github.base_ref }}
-
-      - name: Check if docs/openapi.yaml changed
-        id: changed
-        run: |
-          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -q "^docs/openapi.yaml$"; then
-            echo "changed=true" >> $GITHUB_OUTPUT
-          else
-            echo "changed=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Skip if no OpenAPI changes
-        if: steps.changed.outputs.changed != 'true'
-        run: |
-          echo "No OpenAPI changes detected"
-          exit 0
 
       - name: Download upstream OpenAPI spec
         run: |
+          set -euo pipefail
+
           mkdir -p benchmark
 
           curl -fsSL \
             https://raw.githubusercontent.com/HexmosTech/LiveReview/refs/heads/master/docs/openapi.yaml \
             -o benchmark/upstream-openapi.yaml
 
-          echo "Downloaded upstream spec"
+          echo "===== DOWNLOADED FILE ====="
+          ls -lh benchmark/upstream-openapi.yaml
 
-      - name: Pull validator image
+      - name: Pull ARM64 OpenAPI validator image
         run: |
           docker pull \
             --platform=linux/arm64 \
             openapitools/openapi-generator-cli:latest
 
-      - name: Run validation benchmark
+      - name: Run OpenAPI benchmark
         run: |
           set -euo pipefail
 
           echo "===== STARTING OPENAPI VALIDATION ====="
 
+          echo "Runner=ubuntu-24.04-arm"
+          echo "Architecture=arm64"
           echo "Memory=${{ matrix.memory }}"
           echo "CPUs=${{ matrix.cpus }}"
 
