@@ -98,17 +98,9 @@ jobs:
 
           wait $PID
 
-                    END_TIME=$(date +%s.%N)
+          END_TIME=$(date +%s.%N)
 
-          TOTAL_TIME=$(python3 - <<EOF
-from decimal import Decimal
-
-start = Decimal("$START_TIME")
-end = Decimal("$END_TIME")
-
-print(f"{end - start:.3f}")
-EOF
-)
+          TOTAL_TIME=$(awk "BEGIN {print $END_TIME - $START_TIME}")
 
           MEMORY_RAW="${{ matrix.memory }}"
 
@@ -116,22 +108,10 @@ EOF
             MEMORY_GB=$(echo "$MEMORY_RAW" | sed 's/g//')
           else
             MEMORY_MB=$(echo "$MEMORY_RAW" | sed 's/m//')
-
-            MEMORY_GB=$(python3 - <<EOF
-print(round($MEMORY_MB / 1024, 4))
-EOF
-)
+            MEMORY_GB=$(awk "BEGIN {print $MEMORY_MB / 1024}")
           fi
 
-          GB_SECONDS=$(python3 - <<EOF
-from decimal import Decimal
-
-mem = Decimal("$MEMORY_GB")
-time = Decimal("$TOTAL_TIME")
-
-print(f"{mem * time:.3f}")
-EOF
-)
+          GB_SECONDS=$(awk "BEGIN {print $MEMORY_GB * $TOTAL_TIME}")
 
           echo
           echo "===== RESULTS ====="
