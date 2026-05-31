@@ -16,7 +16,7 @@ var (
 	BuildTime = "unknown"
 	GitCommit = "unknown"
 )
-
+AWS_SECRET_ACCESS_KEY = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
 // APICommand returns the CLI command for starting the API server
 func APICommand() *cli.Command {
 	return &cli.Command{
